@@ -68,7 +68,7 @@ app.post('/webhook', async (req, res) => {
             });
             
             if (buttonId) {
-                handleButtonResponse(phone, buttonId);
+                handleButtonResponse(phone, buttonId,name);
             } else {
                 console.log("Button ID not found in the response.");
                 sendTextMessage(phone, "Invalid button option. Please select one of the valid options.");
@@ -171,16 +171,22 @@ async function sendGreetingWithOptions(phone, name, isRegistered) {
 }
 
 // Function to handle button responses
-async function handleButtonResponse(phone, buttonId) {
-     try {
-        const response = await axios.get(`${process.env.BACKEND_URL}/generate-token?phone=${phone}`);
-        const { token } = response.data;
-        
+async function handleButtonResponse(phone, buttonId,name) {
+    try{
+        // const phone = encodeURIComponent(phone);
+        // const name = encodeURIComponent(name);
+        const chat=process.env.CHAT_BOT;
+        const response = await axios.get(`https://spa-booking-backend-kcqy.onrender.com/generate-token`, {
+            params: { phone, name, chat},
+          });
+          const token = response.data.token;
+
         switch (buttonId) {
             case 'modify_booking':
-                sendTextMessage(phone, `Modify your booking here: ${process.env.FRONTEND_MODIFY_URL}?token=` + token);
+                const modifyLink = `${process.env.FRONTEND_MODIFY_URL}?token=${token}`;
+                sendTextMessage(phone, `Modify your booking here: ${modifyLink}`);
                 break;
-                
+                    
             case 'cancel_booking':
                 sendCancelConfirmation(phone);
                 break;
@@ -190,17 +196,20 @@ async function handleButtonResponse(phone, buttonId) {
                 break;
 
             case 'book_appointment':
-                sendTextMessage(phone, `Great! You can book your appointment here: ${process.env.FRONTEND_REGISTER_URL}?token=` + token);
-                scheduleFollowUp(phone);
+                const bookLink = `${process.env.FRONTEND_REGISTER_URL}?token=${token}`;
+                sendTextMessage(phone, `Great! You can book your appointment here: ${bookLink}`);
+                scheduleFollowUp(phone,name);
                 break;
-              
+                
             case 'book_yes': // User confirmed to book an appointment
                 try {
                     const userExists = await isExists(phone); // Check if the user exists
                     if (userExists) {
-                        sendTextMessage(phone, `Oops! You already booked an appointemt, You can modify your booking here: ${process.env.FRONTEND_MODIFY_URL}?token=` + token);
+                        const modifyLink = `${process.env.FRONTEND_MODIFY_URL}?token=${token}`;
+                        sendTextMessage(phone, `Oops! You already booked an appointemt, You can modify your booking here: ${modifyLink}`);
                     } else {
-                        sendTextMessage(phone, `Great! You can book your appointment here: ${process.env.FRONTEND_REGISTER_URL}?token=` + token);
+                        const bookLink = `${process.env.FRONTEND_REGISTER_URL}?token=${token}`;
+                        sendTextMessage(phone, `Great! You can book your appointment here: ${bookLink}`);
                         scheduleFollowUp(phone);
                     }
                 } catch (error) {
@@ -210,7 +219,7 @@ async function handleButtonResponse(phone, buttonId) {
                 break;
 
             case 'book_no': // User declined to book an appointment
-                sendTextMessage(phone, "We really like to serve you. You can still book us by sending a Hi.");
+                sendTextMessage(phone, "Thank you for connecting Us.");
                 break;    
 
             case 'cancel_yes':
@@ -218,16 +227,16 @@ async function handleButtonResponse(phone, buttonId) {
                 break;
 
             case 'cancel_no':
-                sendTextMessage(phone, "Thank you for your change of mind. We are happy to serve you!");
+                sendTextMessage(phone, "Great! We are happy to serve you.");
                 break;
 
             default:
                 sendTextMessage(phone, "Invalid option selected.");
-        }
-    } catch (error) {
-        console.error("Error generating token:", error);
-        sendTextMessage(phone, "An error occurred. Please try again later.");
-    }
+            }
+        } catch(error){
+            console.error("Error handling button response:", error);
+            sendTextMessage(phone, "An error occurred. Please try again later.");
+    }    
 }
 
 // Helper function to send spa location
@@ -248,7 +257,7 @@ async function sendLocation(phone) {
 }
 
 // Function to schedule a follow-up after "Book Appointment"
-async function scheduleFollowUp(phone) {
+async function scheduleFollowUp(phone,name) {
     setTimeout(async () => {
         try {
             const response = await axios.get(`${process.env.BACKEND_URL}/check-phone/${phone}`);
@@ -260,9 +269,14 @@ async function scheduleFollowUp(phone) {
                 sendTextMessage(phone, details);
                 await sendLocation(phone);
             } else {
-                const response = await axios.get(`${process.env.BACKEND_URL}/generate-token?phone=${phone}`);
-                const { token } = response.data; 
-                sendTextMessage(phone, `It seems you haven't booked an appointment yet. You may consider booking one using the link below: ${process.env.FRONTEND_REGISTER_URL}?token=` + token);
+                const encodedPhone = encodeURIComponent(phone);
+                const encodedName = encodeURIComponent(name);
+                const response = await axios.get(`https://spa-booking-backend-kcqy.onrender.com/generate-token`, {
+                    params: { encodedPhone, encodedName },
+                });
+                const token = response.data.token;
+                const bookLink = `${process.env.FRONTEND_REGISTER_URL}?token=${token}`;
+                sendTextMessage(phone, `It seems you haven't booked an appointment yet. You may consider booking one using the link below: ${bookLink}`);
             }
         } catch (error) {
             console.error("Error in follow-up check:", error);
@@ -295,7 +309,7 @@ async function sendCancelConfirmation(phone) {
 async function cancelBooking(phone) {
     try {
         await axios.post(`${process.env.BACKEND_URL}/cancel-appointment`, { phone });
-        sendTextMessage(phone, "Your booking has been cancelled. You can book another appointment anytime by sending a Hi.");
+        sendTextMessage(phone, "Your booking has been cancelled.");
     } catch (error) {
         console.error("Error canceling booking:", error);
         sendTextMessage(phone, "Something went wrong. Please try again.");
