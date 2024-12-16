@@ -264,11 +264,7 @@ async function scheduleFollowUp(phone,name,bookLink) {
             const response = await axios.get(`${process.env.BACKEND_URL}/check-phone/${phone}`);
             const { exists, appointment } = response.data;               
             if (exists) {
-                const details = `
-                    Thank you for booking with us.We look forward to serving you!\nHere are your appointment details:\n- Service: ${appointment.service}\n- Date: ${appointment.date}\n- Time: ${formatTimeTo12Hour(appointment.time)}\n📍 Location: ${process.env.SPA_NAME}, ${process.env.SPA_ADDRESS}
-                `;
-                sendTextMessage(phone, details);
-                await sendLocation(phone);
+                console.log("appointment booked");
             } else {
                 sendTextMessage(phone, `Hi ${name}, we noticed you didn't book your appointment—how about a special offer just for you? ${process.env.OFFER}! 😊\nBook now: ${bookLink}`);
             }
